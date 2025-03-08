@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
 
 // Scene setup
 const scene = new THREE.Scene()
@@ -59,16 +60,65 @@ createBox(2, 1.5, 2, 6, 0, 6) // Small platform
 createBox(3, 2, 3, -6, 0, 8) // Another medium platform
 
 // Character
-const characterGeometry = new THREE.BoxGeometry(1, 2, 1)
-const characterMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-const character = new THREE.Mesh(characterGeometry, characterMaterial)
-character.position.y = 1
-character.castShadow = true
-scene.add(character)
+let character = null
+let mixer = null
+let walkAction = null
+let isWalking = false
+const modelScale = 0.02 // Adjust this value based on your model's size
 
 // Camera setup
 camera.position.set(0, 4, 8)
-camera.lookAt(character.position)
+camera.lookAt(new THREE.Vector3(0, 1, 0)) // Look at default position until character loads
+
+// Load character model
+const loader = new FBXLoader()
+loader.load(
+  '/models/walking.fbx',
+  (fbx) => {
+    character = fbx
+    character.scale.set(modelScale, modelScale, modelScale)
+    character.position.y = 1
+    character.castShadow = true
+    character.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true
+      }
+    })
+    scene.add(character)
+
+    // Setup animation
+    mixer = new THREE.AnimationMixer(character)
+    const animations = character.animations
+    if (animations && animations.length > 0) {
+      walkAction = mixer.clipAction(animations[0])
+      walkAction.setLoop(THREE.LoopRepeat)
+      walkAction.clampWhenFinished = true
+      walkAction.play()
+      // Initially pause the animation
+      walkAction.paused = true
+    }
+
+    // Update camera to look at character once loaded
+    camera.lookAt(character.position)
+  },
+  (progress) => {
+    console.log(
+      'Loading model:',
+      (progress.loaded / progress.total) * 100 + '%'
+    )
+  },
+  (error) => {
+    console.error('Error loading model:', error)
+    // Create a fallback box character if model fails to load
+    const geometry = new THREE.BoxGeometry(1, 2, 1)
+    const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+    character = new THREE.Mesh(geometry, material)
+    character.position.y = 1
+    character.castShadow = true
+    scene.add(character)
+    camera.lookAt(character.position)
+  }
+)
 
 // Character movement
 const moveSpeed = 0.1
@@ -156,11 +206,13 @@ document.addEventListener('keyup', (event) => {
 const gravity = -0.005
 
 function checkCollisions() {
+  if (!character) return // Skip if character isn't loaded yet
+
   // Check collision with each obstacle
   for (const obstacle of obstacles) {
     const box = obstacle.mesh
-    const characterBottom = character.position.y - 1 // Character's bottom point
-    const characterTop = character.position.y + 1 // Character's top point
+    const characterBottom = character.position.y - 1
+    const characterTop = character.position.y + 1
 
     // Check if character is within the horizontal bounds of the box
     const withinX =
@@ -205,7 +257,7 @@ function checkCollisions() {
     }
   }
 
-  // Ground collision (keep existing ground collision)
+  // Ground collision
   if (character.position.y <= 1) {
     character.position.y = 1
     velocity.y = 0
@@ -214,6 +266,8 @@ function checkCollisions() {
 }
 
 function updatePhysics() {
+  if (!character) return // Skip if character isn't loaded yet
+
   // Apply gravity
   velocity.y += gravity
   character.position.y += velocity.y
@@ -223,10 +277,25 @@ function updatePhysics() {
 }
 
 function updateMovement() {
+  if (!character) return // Skip if character isn't loaded yet
+
   // Calculate forward direction based on character rotation
   const forward = new THREE.Vector3(0, 0, -1)
   forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), character.rotation.y)
   const right = new THREE.Vector3(-forward.z, 0, forward.x)
+
+  // Track if character is moving
+  const wasWalking = isWalking
+  isWalking = keys.w || keys.s || keys.a || keys.d
+
+  // Handle animation state changes
+  if (walkAction) {
+    if (isWalking && walkAction.paused) {
+      walkAction.paused = false
+    } else if (!isWalking && !walkAction.paused) {
+      walkAction.paused = true
+    }
+  }
 
   // Apply movement based on key states
   if (keys.w) character.position.add(forward.multiplyScalar(moveSpeed))
@@ -239,6 +308,8 @@ function updateMovement() {
 }
 
 function updateCamera() {
+  if (!character) return // Skip if character isn't loaded yet
+
   // Calculate camera position based on character position and rotation
   const cameraOffset = new THREE.Vector3(0, initialCameraHeight, 8)
 
@@ -257,6 +328,11 @@ function updateCamera() {
 // Animation loop
 function animate() {
   requestAnimationFrame(animate)
+
+  // Update animation mixer
+  if (mixer) {
+    mixer.update(0.016) // Update animations (assuming 60fps)
+  }
 
   updatePhysics()
   updateMovement()
