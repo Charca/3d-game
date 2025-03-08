@@ -404,8 +404,26 @@ function updateCamera() {
   // Then apply horizontal rotation using camera rotation
   cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation)
 
-  camera.position.copy(character.position).add(cameraOffset)
-  camera.lookAt(character.position)
+  // Calculate new camera position
+  const newCameraPosition = character.position.clone().add(cameraOffset)
+
+  // Check if camera would go below ground level (with a small buffer)
+  const minCameraHeight = 0.5 // Minimum height above ground
+  if (newCameraPosition.y < minCameraHeight) {
+    // Adjust the vertical offset to keep camera above ground
+    const heightDiff = minCameraHeight - newCameraPosition.y
+    newCameraPosition.y = minCameraHeight
+
+    // Adjust the look-at point to maintain similar viewing angle
+    const lookAtPoint = character.position.clone()
+    lookAtPoint.y += heightDiff * 0.5 // Adjust look-at point up slightly
+    camera.position.copy(newCameraPosition)
+    camera.lookAt(lookAtPoint)
+  } else {
+    // Normal camera update
+    camera.position.copy(newCameraPosition)
+    camera.lookAt(character.position)
+  }
 
   // Update character light position and target
   characterLight.position
