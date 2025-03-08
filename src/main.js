@@ -198,6 +198,8 @@ const moveSpeed = 0.1
 const jumpForce = 0.15
 let velocity = new THREE.Vector3()
 let isJumping = false
+let targetCharacterRotation = 0 // Added: Target rotation for smooth interpolation
+const rotationSpeed = 0.1 // Added: Controls how fast the character turns
 
 // Mouse control
 let mouseX = 0
@@ -211,10 +213,10 @@ document.addEventListener('mousemove', (event) => {
   const movementX = event.movementX || 0
   const movementY = event.movementY || 0
 
-  cameraRotation -= movementX * 0.002 // Changed from targetRotation
+  cameraRotation -= movementX * 0.001 // Reduced from 0.002 to 0.001
   targetVerticalRotation = Math.max(
     -verticalRotationLimit / 2,
-    Math.min(verticalRotationLimit, targetVerticalRotation + movementY * 0.002)
+    Math.min(verticalRotationLimit, targetVerticalRotation + movementY * 0.001) // Reduced from 0.002 to 0.001
   )
 })
 
@@ -355,7 +357,7 @@ function updateMovement() {
 
   // Calculate movement direction based on camera rotation
   const forward = new THREE.Vector3(0, 0, -1)
-  forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation) // Use camera rotation instead of character rotation
+  forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation)
   const right = new THREE.Vector3(-forward.z, 0, forward.x)
 
   // Track if character is moving
@@ -385,9 +387,19 @@ function updateMovement() {
     moveDirection.normalize()
     character.position.add(moveDirection.multiplyScalar(moveSpeed))
 
-    // Make character face movement direction
-    character.rotation.y = Math.atan2(moveDirection.x, moveDirection.z)
+    // Update target rotation based on movement direction
+    targetCharacterRotation = Math.atan2(moveDirection.x, moveDirection.z)
   }
+
+  // Smoothly interpolate current rotation to target rotation
+  const currentRotation = character.rotation.y
+  const rotationDiff = targetCharacterRotation - currentRotation
+
+  // Normalize the rotation difference to handle the -PI to PI transition
+  let normalizedDiff = ((rotationDiff + Math.PI) % (Math.PI * 2)) - Math.PI
+
+  // Apply smooth rotation
+  character.rotation.y += normalizedDiff * rotationSpeed
 }
 
 function updateCamera() {
