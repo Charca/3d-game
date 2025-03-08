@@ -3,29 +3,78 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
 
 // Scene setup
 const scene = new THREE.Scene()
+scene.background = new THREE.Color(0x87ceeb) // Light blue sky color
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
   0.1,
   1000
 )
-const renderer = new THREE.WebGLRenderer()
+const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.shadowMap.enabled = true
+renderer.shadowMap.type = THREE.PCFSoftShadowMap // Softer shadows
+renderer.outputEncoding = THREE.sRGBEncoding // Better color accuracy
+renderer.toneMapping = THREE.ACESFilmicToneMapping // More realistic tone mapping
+renderer.toneMappingExposure = 1.0
 document.body.appendChild(renderer.domElement)
 
 // Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4) // Increased from 0.3 to 0.4
 scene.add(ambientLight)
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-directionalLight.position.set(5, 5, 5)
-directionalLight.castShadow = true
-scene.add(directionalLight)
+// Main directional light (sun)
+const mainLight = new THREE.DirectionalLight(0xffffff, 1.2) // Increased intensity
+mainLight.position.set(15, 15, 15) // Adjusted position for better coverage
+mainLight.castShadow = true
+mainLight.shadow.mapSize.width = 2048
+mainLight.shadow.mapSize.height = 2048
+mainLight.shadow.camera.near = 0.5
+mainLight.shadow.camera.far = 50
+mainLight.shadow.camera.left = -30
+mainLight.shadow.camera.right = 30
+mainLight.shadow.camera.top = 30
+mainLight.shadow.camera.bottom = -30
+mainLight.shadow.bias = -0.0001
+scene.add(mainLight)
 
-// Ground
+// Fill light
+const fillLight = new THREE.DirectionalLight(0x9ca3af, 0.6) // Increased from 0.4 to 0.6
+fillLight.position.set(-10, 8, -10) // Adjusted height
+scene.add(fillLight)
+
+// Rim light
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.4) // Increased from 0.3 to 0.4
+rimLight.position.set(5, 5, -10) // Adjusted height
+scene.add(rimLight)
+
+// Ground light (bounce light simulation)
+const groundLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5) // Increased from 0.4 to 0.5
+scene.add(groundLight)
+
+// Character spotlight
+let characterLight = new THREE.SpotLight(0xffffff, 0.8)
+characterLight.position.set(0, 10, 0)
+characterLight.angle = Math.PI / 3
+characterLight.penumbra = 0.5
+characterLight.decay = 1
+characterLight.distance = 25
+characterLight.castShadow = true
+characterLight.shadow.bias = -0.001
+scene.add(characterLight)
+
+// Character light target
+const characterLightTarget = new THREE.Object3D()
+scene.add(characterLightTarget)
+characterLight.target = characterLightTarget
+
+// Ground material with better shading
 const groundGeometry = new THREE.PlaneGeometry(100, 100)
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 })
+const groundMaterial = new THREE.MeshStandardMaterial({
+  color: 0x808080,
+  roughness: 0.8,
+  metalness: 0.2,
+})
 const ground = new THREE.Mesh(groundGeometry, groundMaterial)
 ground.rotation.x = -Math.PI / 2
 ground.receiveShadow = true
@@ -36,7 +85,11 @@ const obstacles = []
 
 function createBox(width, height, depth, x, y, z, color = 0x8b4513) {
   const geometry = new THREE.BoxGeometry(width, height, depth)
-  const material = new THREE.MeshStandardMaterial({ color })
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.7,
+    metalness: 0.1,
+  })
   const box = new THREE.Mesh(geometry, material)
   box.position.set(x, y + height / 2, z)
   box.castShadow = true
@@ -70,6 +123,24 @@ const modelScale = 0.02 // Adjust this value based on your model's size
 camera.position.set(0, 4, 8)
 camera.lookAt(new THREE.Vector3(0, 1, 0)) // Look at default position until character loads
 
+// Camera controls
+const minZoomDistance = 3
+const maxZoomDistance = 15
+let cameraDistance = 8 // Initial camera distance
+const zoomSpeed = 0.5
+
+// Add wheel event listener for zoom
+document.addEventListener('wheel', (event) => {
+  // Zoom in/out based on wheel direction
+  cameraDistance += event.deltaY * 0.01 * zoomSpeed
+
+  // Clamp the distance between min and max values
+  cameraDistance = Math.max(
+    minZoomDistance,
+    Math.min(maxZoomDistance, cameraDistance)
+  )
+})
+
 // Load character model
 const loader = new FBXLoader()
 loader.load(
@@ -77,7 +148,8 @@ loader.load(
   (fbx) => {
     character = fbx
     character.scale.set(modelScale, modelScale, modelScale)
-    character.position.y = 1
+    character.position.y = 0
+    character.rotation.y = 0 // Changed from Math.PI to 0
     character.castShadow = true
     character.traverse((child) => {
       if (child.isMesh) {
@@ -113,7 +185,8 @@ loader.load(
     const geometry = new THREE.BoxGeometry(1, 2, 1)
     const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 })
     character = new THREE.Mesh(geometry, material)
-    character.position.y = 1
+    character.position.y = 0
+    character.rotation.y = 0 // Changed from Math.PI to 0
     character.castShadow = true
     scene.add(character)
     camera.lookAt(character.position)
@@ -211,8 +284,8 @@ function checkCollisions() {
   // Check collision with each obstacle
   for (const obstacle of obstacles) {
     const box = obstacle.mesh
-    const characterBottom = character.position.y - 1
-    const characterTop = character.position.y + 1
+    const characterBottom = character.position.y // Changed from character.position.y - 1
+    const characterTop = character.position.y + 2 // Changed from character.position.y + 1
 
     // Check if character is within the horizontal bounds of the box
     const withinX =
@@ -258,8 +331,9 @@ function checkCollisions() {
   }
 
   // Ground collision
-  if (character.position.y <= 1) {
-    character.position.y = 1
+  if (character.position.y <= 0) {
+    // Changed from 1 to 0
+    character.position.y = 0 // Changed from 1 to 0
     velocity.y = 0
     isJumping = false
   }
@@ -311,7 +385,7 @@ function updateCamera() {
   if (!character) return // Skip if character isn't loaded yet
 
   // Calculate camera position based on character position and rotation
-  const cameraOffset = new THREE.Vector3(0, initialCameraHeight, 8)
+  const cameraOffset = new THREE.Vector3(0, initialCameraHeight, cameraDistance) // Use cameraDistance instead of fixed value
 
   // Apply vertical rotation first
   cameraOffset.applyAxisAngle(
@@ -323,6 +397,12 @@ function updateCamera() {
 
   camera.position.copy(character.position).add(cameraOffset)
   camera.lookAt(character.position)
+
+  // Update character light position and target
+  characterLight.position
+    .copy(character.position)
+    .add(new THREE.Vector3(0, 10, 0))
+  characterLightTarget.position.copy(character.position)
 }
 
 // Animation loop
