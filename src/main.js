@@ -202,7 +202,7 @@ let isJumping = false
 // Mouse control
 let mouseX = 0
 let mouseY = 0
-let targetRotation = 0
+let cameraRotation = 0 // Changed from targetRotation
 let targetVerticalRotation = 0
 const verticalRotationLimit = Math.PI / 6
 const initialCameraHeight = 4
@@ -211,7 +211,7 @@ document.addEventListener('mousemove', (event) => {
   const movementX = event.movementX || 0
   const movementY = event.movementY || 0
 
-  targetRotation -= movementX * 0.002
+  cameraRotation -= movementX * 0.002 // Changed from targetRotation
   targetVerticalRotation = Math.max(
     -verticalRotationLimit / 2,
     Math.min(verticalRotationLimit, targetVerticalRotation + movementY * 0.002)
@@ -351,11 +351,11 @@ function updatePhysics() {
 }
 
 function updateMovement() {
-  if (!character) return // Skip if character isn't loaded yet
+  if (!character) return
 
-  // Calculate forward direction based on character rotation
+  // Calculate movement direction based on camera rotation
   const forward = new THREE.Vector3(0, 0, -1)
-  forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), character.rotation.y)
+  forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation) // Use camera rotation instead of character rotation
   const right = new THREE.Vector3(-forward.z, 0, forward.x)
 
   // Track if character is moving
@@ -371,29 +371,38 @@ function updateMovement() {
     }
   }
 
-  // Apply movement based on key states
-  if (keys.w) character.position.add(forward.multiplyScalar(moveSpeed))
-  if (keys.s) character.position.add(forward.multiplyScalar(-moveSpeed))
-  if (keys.a) character.position.add(right.multiplyScalar(-moveSpeed))
-  if (keys.d) character.position.add(right.multiplyScalar(moveSpeed))
+  // Store the movement direction for character rotation
+  let moveDirection = new THREE.Vector3(0, 0, 0)
 
-  // Smooth character rotation
-  character.rotation.y += (targetRotation - character.rotation.y) * 0.1
+  // Apply movement based on key states
+  if (keys.w) moveDirection.add(forward)
+  if (keys.s) moveDirection.add(forward.clone().multiplyScalar(-1))
+  if (keys.a) moveDirection.add(right.clone().multiplyScalar(-1))
+  if (keys.d) moveDirection.add(right)
+
+  // If there's movement, normalize and apply it
+  if (moveDirection.length() > 0) {
+    moveDirection.normalize()
+    character.position.add(moveDirection.multiplyScalar(moveSpeed))
+
+    // Make character face movement direction
+    character.rotation.y = Math.atan2(moveDirection.x, moveDirection.z)
+  }
 }
 
 function updateCamera() {
-  if (!character) return // Skip if character isn't loaded yet
+  if (!character) return
 
   // Calculate camera position based on character position and rotation
-  const cameraOffset = new THREE.Vector3(0, initialCameraHeight, cameraDistance) // Use cameraDistance instead of fixed value
+  const cameraOffset = new THREE.Vector3(0, initialCameraHeight, cameraDistance)
 
   // Apply vertical rotation first
   cameraOffset.applyAxisAngle(
     new THREE.Vector3(1, 0, 0),
     targetVerticalRotation
   )
-  // Then apply horizontal rotation
-  cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), character.rotation.y)
+  // Then apply horizontal rotation using camera rotation
+  cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation)
 
   camera.position.copy(character.position).add(cameraOffset)
   camera.lookAt(character.position)
