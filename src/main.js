@@ -604,6 +604,133 @@ function checkDonutCollection() {
   })
 }
 
+// Ball physics
+const ball = {
+  mesh: null,
+  velocity: new THREE.Vector3(),
+  radius: 0.5,
+  friction: 0.98,
+  bounce: 0.7,
+}
+
+// Create ball
+function createBall() {
+  const geometry = new THREE.SphereGeometry(ball.radius, 32, 32)
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xff4444,
+    roughness: 0.4,
+    metalness: 0.3,
+  })
+  ball.mesh = new THREE.Mesh(geometry, material)
+  ball.mesh.position.set(2, ball.radius, 0) // Start near character
+  ball.mesh.castShadow = true
+  ball.mesh.receiveShadow = true
+  scene.add(ball.mesh)
+}
+
+createBall()
+
+function updateBall() {
+  if (!ball.mesh || !character) return
+
+  // Apply gravity
+  ball.velocity.y += gravity * 2
+
+  // Apply velocity
+  ball.mesh.position.add(ball.velocity)
+
+  // Ground collision
+  if (ball.mesh.position.y <= ball.radius) {
+    ball.mesh.position.y = ball.radius
+    ball.velocity.y *= -ball.bounce
+    // Apply friction when on ground
+    ball.velocity.x *= ball.friction
+    ball.velocity.z *= ball.friction
+  }
+
+  // Character collision (kick the ball)
+  const characterToBall = new THREE.Vector3()
+  characterToBall.subVectors(ball.mesh.position, character.position)
+  const distance = characterToBall.length()
+
+  if (distance < ball.radius + 1) {
+    // 1 is approximate character radius
+    // Normalize kick direction and apply force
+    characterToBall.normalize()
+
+    // Calculate kick strength based on character's movement
+    let kickStrength = 0.2
+    if (keys.w || keys.s || keys.a || keys.d) {
+      kickStrength = 0.4 // Stronger kick when moving
+    }
+
+    ball.velocity.add(characterToBall.multiplyScalar(kickStrength))
+    ball.velocity.y = 0.15 // Add slight upward force
+  }
+
+  // Box collisions
+  obstacles.forEach((obstacle) => {
+    const box = obstacle.mesh
+    const ballToBox = new THREE.Vector3()
+    ballToBox.subVectors(ball.mesh.position, box.position)
+
+    // Check if ball is within box bounds (with radius)
+    if (
+      Math.abs(ballToBox.x) < obstacle.width / 2 + ball.radius &&
+      Math.abs(ballToBox.z) < obstacle.depth / 2 + ball.radius &&
+      Math.abs(ballToBox.y) < obstacle.height / 2 + ball.radius
+    ) {
+      // Find closest face and bounce
+      const faces = [
+        {
+          normal: new THREE.Vector3(1, 0, 0),
+          dist: obstacle.width / 2 + ball.radius - Math.abs(ballToBox.x),
+        },
+        {
+          normal: new THREE.Vector3(-1, 0, 0),
+          dist: obstacle.width / 2 + ball.radius - Math.abs(ballToBox.x),
+        },
+        {
+          normal: new THREE.Vector3(0, 1, 0),
+          dist: obstacle.height / 2 + ball.radius - Math.abs(ballToBox.y),
+        },
+        {
+          normal: new THREE.Vector3(0, -1, 0),
+          dist: obstacle.height / 2 + ball.radius - Math.abs(ballToBox.y),
+        },
+        {
+          normal: new THREE.Vector3(0, 0, 1),
+          dist: obstacle.depth / 2 + ball.radius - Math.abs(ballToBox.z),
+        },
+        {
+          normal: new THREE.Vector3(0, 0, -1),
+          dist: obstacle.depth / 2 + ball.radius - Math.abs(ballToBox.z),
+        },
+      ]
+
+      // Find closest face
+      const closestFace = faces.reduce((prev, curr) =>
+        prev.dist < curr.dist ? prev : curr
+      )
+
+      // Bounce off face
+      const reflection = ball.velocity.reflect(closestFace.normal)
+      ball.velocity.copy(reflection.multiplyScalar(ball.bounce))
+    }
+  })
+
+  // Map bounds
+  const mapBounds = 50
+  if (Math.abs(ball.mesh.position.x) > mapBounds) {
+    ball.mesh.position.x = Math.sign(ball.mesh.position.x) * mapBounds
+    ball.velocity.x *= -ball.bounce
+  }
+  if (Math.abs(ball.mesh.position.z) > mapBounds) {
+    ball.mesh.position.z = Math.sign(ball.mesh.position.z) * mapBounds
+    ball.velocity.z *= -ball.bounce
+  }
+}
+
 // Animation loop
 function animate() {
   requestAnimationFrame(animate)
@@ -616,7 +743,8 @@ function animate() {
   updatePhysics()
   updateMovement()
   updateCamera()
-  updateClouds() // Add cloud movement
+  updateClouds()
+  updateBall() // Add ball update
   checkDonutCollection()
 
   renderer.render(scene, camera)
