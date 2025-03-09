@@ -3,7 +3,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
 
 // Scene setup
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xffb6c1) // Pink sky color
+scene.background = new THREE.Color(0xffd700) // Yellow sky color
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -79,6 +79,68 @@ const ground = new THREE.Mesh(groundGeometry, groundMaterial)
 ground.rotation.x = -Math.PI / 2
 ground.receiveShadow = true
 scene.add(ground)
+
+// Cloud system
+const clouds = []
+
+function createCloud(x, y, z) {
+  const cloudGroup = new THREE.Group()
+
+  // Create multiple spheres for each cloud
+  const numPuffs = 5 + Math.floor(Math.random() * 4)
+  const cloudMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.3,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.8,
+  })
+
+  for (let i = 0; i < numPuffs; i++) {
+    const puffSize = 2 + Math.random() * 2
+    const puffGeometry = new THREE.SphereGeometry(puffSize, 16, 16)
+    const puff = new THREE.Mesh(puffGeometry, cloudMaterial)
+
+    // Position each puff slightly offset from the center
+    puff.position.set(
+      (Math.random() - 0.5) * 4,
+      (Math.random() - 0.5) * 2,
+      (Math.random() - 0.5) * 4
+    )
+
+    cloudGroup.add(puff)
+  }
+
+  cloudGroup.position.set(x, y, z)
+  scene.add(cloudGroup)
+
+  // Add to clouds array with movement properties
+  clouds.push({
+    mesh: cloudGroup,
+    speed: 0.01 + Math.random() * 0.02,
+    startX: x,
+  })
+}
+
+// Create several clouds at different positions
+for (let i = 0; i < 10; i++) {
+  const x = (Math.random() - 0.5) * 80
+  const y = 30 + Math.random() * 10
+  const z = (Math.random() - 0.5) * 80
+  createCloud(x, y, z)
+}
+
+// Add cloud movement to animation loop
+function updateClouds() {
+  clouds.forEach((cloud) => {
+    cloud.mesh.position.x += cloud.speed
+
+    // Reset cloud position when it moves too far
+    if (cloud.mesh.position.x > 50) {
+      cloud.mesh.position.x = -50
+    }
+  })
+}
 
 // UI Setup
 const donutCounter = document.createElement('div')
@@ -554,7 +616,8 @@ function animate() {
   updatePhysics()
   updateMovement()
   updateCamera()
-  checkDonutCollection() // Add donut collection check
+  updateClouds() // Add cloud movement
+  checkDonutCollection()
 
   renderer.render(scene, camera)
 }
