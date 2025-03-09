@@ -3,7 +3,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
 
 // Scene setup
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x87ceeb) // Light blue sky color
+scene.background = new THREE.Color(0xffb6c1) // Pink sky color
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -79,6 +79,89 @@ const ground = new THREE.Mesh(groundGeometry, groundMaterial)
 ground.rotation.x = -Math.PI / 2
 ground.receiveShadow = true
 scene.add(ground)
+
+// UI Setup
+const donutCounter = document.createElement('div')
+donutCounter.style.position = 'absolute'
+donutCounter.style.top = '20px'
+donutCounter.style.left = '20px'
+donutCounter.style.color = 'white'
+donutCounter.style.fontSize = '24px'
+donutCounter.style.fontFamily = 'Arial, sans-serif'
+donutCounter.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)'
+document.body.appendChild(donutCounter)
+
+let donutsCollected = 0
+const updateDonutCounter = () => {
+  donutCounter.textContent = `Donuts: ${donutsCollected}`
+}
+updateDonutCounter()
+
+// Donuts
+const donuts = []
+
+function createDonut(x, y, z) {
+  const torusGeometry = new THREE.TorusGeometry(0.3, 0.15, 16, 32) // Reduced from 0.5, 0.25
+  const donutMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff69b4, // Pink color for the donut
+    roughness: 0.6,
+    metalness: 0.2,
+  })
+  const donut = new THREE.Mesh(torusGeometry, donutMaterial)
+  donut.position.set(x, y, z)
+  donut.rotation.x = Math.PI / 2 // Make donut lay flat
+  donut.castShadow = true
+  donut.receiveShadow = true
+  scene.add(donut)
+  donuts.push({
+    mesh: donut,
+    collected: false,
+  })
+  return donut
+}
+
+// Function to get random position within map bounds
+function getRandomDonutPosition() {
+  const mapSize = 40 // Size of playable area
+  const minHeight = 1 // Minimum height above ground
+  const maxHeight = 4 // Maximum height for floating donuts
+
+  // Get random position
+  const x = (Math.random() - 0.5) * mapSize
+  const z = (Math.random() - 0.5) * mapSize
+  const y = minHeight + Math.random() * (maxHeight - minHeight)
+
+  return { x, y, z }
+}
+
+// Create 50 donuts around the map
+for (let i = 0; i < 50; i++) {
+  const pos = getRandomDonutPosition()
+
+  // Create clusters of donuts near platforms
+  if (i < 15) {
+    // 15 donuts near platforms
+    const platforms = [
+      { x: -8, y: 2, z: -8 }, // Large platform
+      { x: 8, y: 1, z: -8 }, // Medium platform
+      { x: 0, y: 3, z: -12 }, // Tall platform
+      { x: -4, y: 0.5, z: 4 }, // Long low platform
+      { x: 6, y: 1.5, z: 6 }, // Small platform
+      { x: -6, y: 2, z: 8 }, // Another medium platform
+    ]
+    const platform = platforms[Math.floor(Math.random() * platforms.length)]
+    const offset = 2 // Maximum distance from platform center
+
+    createDonut(
+      platform.x + (Math.random() - 0.5) * offset,
+      platform.y + Math.random() * 2,
+      platform.z + (Math.random() - 0.5) * offset
+    )
+  } else {
+    // Remaining donuts randomly distributed
+    createDonut(pos.x, pos.y, pos.z)
+  }
+}
 
 // Obstacles
 const obstacles = []
@@ -444,6 +527,26 @@ function updateCamera() {
   characterLightTarget.position.copy(character.position)
 }
 
+// Add donut collection check to the update loop
+function checkDonutCollection() {
+  if (!character) return
+
+  const collectionRadius = 1.5 // How close the character needs to be to collect
+
+  donuts.forEach((donut) => {
+    if (!donut.collected) {
+      const distance = character.position.distanceTo(donut.mesh.position)
+
+      if (distance < collectionRadius) {
+        donut.collected = true
+        donut.mesh.visible = false
+        donutsCollected++
+        updateDonutCounter()
+      }
+    }
+  })
+}
+
 // Animation loop
 function animate() {
   requestAnimationFrame(animate)
@@ -456,6 +559,7 @@ function animate() {
   updatePhysics()
   updateMovement()
   updateCamera()
+  checkDonutCollection() // Add donut collection check
 
   renderer.render(scene, camera)
 }
