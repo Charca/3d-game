@@ -123,43 +123,38 @@ function createDonut(x, y, z) {
 // Function to get random position within map bounds
 function getRandomDonutPosition() {
   const mapSize = 40 // Size of playable area
-  const minHeight = 1 // Minimum height above ground
-  const maxHeight = 4 // Maximum height for floating donuts
-
-  // Get random position
   const x = (Math.random() - 0.5) * mapSize
   const z = (Math.random() - 0.5) * mapSize
-  const y = minHeight + Math.random() * (maxHeight - minHeight)
-
-  return { x, y, z }
+  return { x, z }
 }
 
 // Create 50 donuts around the map
 for (let i = 0; i < 50; i++) {
-  const pos = getRandomDonutPosition()
-
-  // Create clusters of donuts near platforms
   if (i < 15) {
-    // 15 donuts near platforms
+    // 15 donuts on platforms
     const platforms = [
-      { x: -8, y: 2, z: -8 }, // Large platform
-      { x: 8, y: 1, z: -8 }, // Medium platform
-      { x: 0, y: 3, z: -12 }, // Tall platform
-      { x: -4, y: 0.5, z: 4 }, // Long low platform
-      { x: 6, y: 1.5, z: 6 }, // Small platform
-      { x: -6, y: 2, z: 8 }, // Another medium platform
+      { x: -8, y: 2, z: -8, width: 4, depth: 4 }, // Large platform
+      { x: 8, y: 1, z: -8, width: 3, depth: 3 }, // Medium platform
+      { x: 0, y: 3, z: -12, width: 2, depth: 2 }, // Tall platform
+      { x: -4, y: 0.5, z: 4, width: 6, depth: 2 }, // Long low platform
+      { x: 6, y: 1.5, z: 6, width: 2, depth: 2 }, // Small platform
+      { x: -6, y: 2, z: 8, width: 3, depth: 3 }, // Another medium platform
     ]
     const platform = platforms[Math.floor(Math.random() * platforms.length)]
-    const offset = 2 // Maximum distance from platform center
+
+    // Place donut on platform surface with offset from edges
+    const offsetX = (Math.random() - 0.5) * (platform.width - 0.5)
+    const offsetZ = (Math.random() - 0.5) * (platform.depth - 0.5)
 
     createDonut(
-      platform.x + (Math.random() - 0.5) * offset,
-      platform.y + Math.random() * 2,
-      platform.z + (Math.random() - 0.5) * offset
+      platform.x + offsetX,
+      platform.y + 0.15, // Just above platform surface
+      platform.z + offsetZ
     )
   } else {
-    // Remaining donuts randomly distributed
-    createDonut(pos.x, pos.y, pos.z)
+    // Remaining donuts on ground
+    const pos = getRandomDonutPosition()
+    createDonut(pos.x, 0.15, pos.z) // Just above ground level
   }
 }
 
