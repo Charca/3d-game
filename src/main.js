@@ -125,7 +125,7 @@ function createCloud(x, y, z) {
 // Create several clouds at different positions
 for (let i = 0; i < 10; i++) {
   const x = (Math.random() - 0.5) * 80
-  const y = 30 + Math.random() * 10
+  const y = 15 + Math.random() * 5 // Lowered from 30-40 to 15-20
   const z = (Math.random() - 0.5) * 80
   createCloud(x, y, z)
 }
@@ -138,6 +138,9 @@ function updateClouds() {
     // Reset cloud position when it moves too far
     if (cloud.mesh.position.x > 50) {
       cloud.mesh.position.x = -50
+      // Randomize height when cloud resets
+      cloud.mesh.position.y = 15 + Math.random() * 5
+      cloud.mesh.position.z = (Math.random() - 0.5) * 80
     }
   })
 }
